@@ -1,0 +1,48 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "title": "Connect to the Alosa server",
+        "description": "If you use the Alosa add-on, it sets this up automatically and you don't need this form.",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "token": "API token"
+        },
+        "data_description": {
+          "token": "Found in the file api_token in the server's data directory."
+        }
+      },
+      "hassio_confirm": {
+        "title": "Alosa add-on found",
+        "description": "Connect Home Assistant to the Alosa add-on?"
+      },
+      "reauth_confirm": {
+        "title": "Alosa API token changed",
+        "description": "The Alosa server rejected the saved API token. Enter the token from the file api_token in the server's data directory.",
+        "data": {
+          "token": "API token"
+        }
+      },
+      "adopt": {
+        "title": "Adopt {name}?",
+        "description": "A new Alosa device ({model}) wants to join.\n\nDevice key fingerprint: **{fingerprint}**\n\nIf you can, check that this matches the fingerprint shown by the device before adopting it."
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not connect to the Alosa server. Check that it is running and the host and port are correct.",
+      "invalid_auth": "The API token is incorrect."
+    },
+    "abort": {
+      "already_configured": "This Alosa server is already configured.",
+      "already_in_progress": "This is already being set up.",
+      "cannot_connect": "Could not connect to the Alosa server.",
+      "reauth_successful": "The API token was updated.",
+      "unique_id_mismatch": "That token belongs to a different Alosa server.",
+      "device_adopted": "Device adopted. It will appear under the Alosa integration shortly.",
+      "adopt_failed": "Could not adopt the device. Make sure it is still powered on and connected, then try again.",
+      "server_unavailable": "The Alosa server is not connected right now. Try again once it is."
+    }
+  }
+}

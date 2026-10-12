@@ -1,0 +1,153 @@
+// Alosa device protocol, v1.
+//
+// Transport: WebSocket, binary frames. Each frame holds exactly one
+// DeviceMessage (device -> server) or ServerMessage (server -> device).
+//
+// Connection flow:
+//   1. Device finds the server via mDNS (_alosa._tcp) and opens ws://<host>:<port>/device
+//   2. Device sends Hello (identity + capabilities)
+//   3. Server replies Welcome (adopted or pending)
+//   4. Device sends Heartbeat every `heartbeat_interval_s`; the server marks it
+//      offline if it misses several in a row.
+syntax = "proto3";
+
+package alosa.device.v1;
+
+// ---------- Envelopes ----------
+
+message DeviceMessage {
+  oneof msg {
+    Hello hello = 1;
+    Heartbeat heartbeat = 2;
+    CommandResult command_result = 3;
+  }
+}
+
+message ServerMessage {
+  oneof msg {
+    Welcome welcome = 1;
+    Command command = 2;
+  }
+}
+
+// ---------- Device -> Server ----------
+
+message Hello {
+  // Stable, unique per device (e.g. derived from the MAC address or a
+  // factory-provisioned serial). Never changes across reboots or updates.
+  string device_id = 1;
+  string model = 2;            // e.g. "alosa-connect", "alosa-bath-clock"
+  string firmware_version = 3; // semver
+  string name = 4;             // suggested friendly name; user can override
+  Capabilities capabilities = 5;
+  uint32 protocol_version = 6; // currently 1
+}
+
+message Heartbeat {
+  uint64 uptime_s = 1;
+}
+
+message CommandResult {
+  uint64 command_id = 1;
+  bool ok = 2;
+  string error = 3;
+}
+
+// ---------- Server -> Device ----------
+
+message Welcome {
+  string server_version = 1;
+  bool adopted = 2;               // false = pending, the user must adopt it first
+  uint32 heartbeat_interval_s = 3;
+}
+
+message Command {
+  uint64 command_id = 1;
+  oneof cmd {
+    Identify identify = 2;
+  }
+}
+
+// Make the device announce itself (blink LEDs, play a chime, flash the screen).
+message Identify {
+  uint32 duration_s = 1;
+}
+
+// ---------- Capabilities ----------
+// A device declares what hardware it has. The server enables features based
+// on these (audio_out -> media player, microphone -> voice satellite, ...).
+// A field that is not set means the device lacks that capability.
+
+message Capabilities {
+  AudioOut audio_out = 1;
+  Microphone microphone = 2;
+  Display display = 3;
+  Power power = 4;
+  repeated SensorKind sensors = 5;
+  uint32 buttons = 6;
+  Leds leds = 7;
+}
+
+message AudioOut {
+  uint32 channels = 1;
+  repeated AudioProtocol protocols = 2;
+}
+
+enum AudioProtocol {
+  AUDIO_PROTOCOL_UNSPECIFIED = 0;
+  AUDIO_PROTOCOL_SNAPCAST = 1;
+  AUDIO_PROTOCOL_SENDSPIN = 2;
+  AUDIO_PROTOCOL_AIRPLAY = 3;
+  AUDIO_PROTOCOL_SPOTIFY_CONNECT = 4;
+}
+
+message Microphone {
+  bool echo_cancellation = 1;
+  bool on_device_wake_word = 2;
+}
+
+message Display {
+  DisplayKind kind = 1;
+  uint32 width = 2;
+  uint32 height = 3;
+  bool touch = 4;
+  uint32 colors = 5; // e-ink palette size; 0 = full color
+}
+
+enum DisplayKind {
+  DISPLAY_KIND_UNSPECIFIED = 0;
+  DISPLAY_KIND_LCD = 1;
+  DISPLAY_KIND_EINK = 2;
+}
+
+message Power {
+  PowerKind kind = 1;
+  bool deep_sleep = 2; // device sleeps between check-ins; don't expect a live connection
+}
+
+enum PowerKind {
+  POWER_KIND_UNSPECIFIED = 0;
+  POWER_KIND_MAINS = 1;
+  POWER_KIND_BATTERY = 2;
+  POWER_KIND_USB = 3;
+}
+
+enum SensorKind {
+  SENSOR_KIND_UNSPECIFIED = 0;
+  SENSOR_KIND_TEMPERATURE = 1;
+  SENSOR_KIND_HUMIDITY = 2;
+  SENSOR_KIND_ILLUMINANCE = 3;
+  SENSOR_KIND_PRESENCE = 4;
+}
+
+message Leds {
+  LedKind kind = 1;
+  uint32 count = 2;
+}
+
+enum LedKind {
+  LED_KIND_UNSPECIFIED = 0;
+  LED_KIND_SINGLE = 1;
+  LED_KIND_RING = 2;
+  LED_KIND_STRIP = 3;
+}

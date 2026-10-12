@@ -1,0 +1,18 @@
+[package]
+name = "alosa-agent"
+description = "Alosa device agent for Linux-class devices (Raspberry Pi etc.)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+alosa-protocol.workspace = true
+anyhow.workspace = true
+clap.workspace = true
+futures-util.workspace = true
+mdns-sd.workspace = true
+prost.workspace = true
+tokio.workspace = true
+tokio-tungstenite = "0.26"
+tracing.workspace = true
+tracing-subscriber.workspace = true

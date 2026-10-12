@@ -1,0 +1,14 @@
+[package]
+name = "alosa-protocol"
+description = "Shared Alosa device protocol types, generated from protocol/*.proto"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+prost.workspace = true
+snow.workspace = true
+
+[build-dependencies]
+prost-build = "0.13"
+protox = "0.7"
