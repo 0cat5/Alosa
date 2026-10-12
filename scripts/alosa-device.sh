@@ -103,7 +103,7 @@ latest_version() { # repo
     else
         location=$(wget -q -S --max-redirect=0 -O /dev/null "$url" 2>&1 | sed -n 's/^ *[Ll]ocation: .*\/tag\/v\{0,1\}//p')
     fi
-    [ -n "$location" ] || die "couldn't find the latest release of $1 (is the repository public? use --from DIR otherwise)"
+    [ -n "$location" ] || die "no published release of $1 found (none yet, or the repository is private); use --from DIR with release files instead"
     echo "$location"
 }
 

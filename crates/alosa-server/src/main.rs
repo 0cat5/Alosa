@@ -114,11 +114,22 @@ async fn main() -> anyhow::Result<()> {
         app.into_make_service_with_connect_info::<SocketAddr>(),
     )
     .with_graceful_shutdown(async {
-        let _ = tokio::signal::ctrl_c().await;
+        shutdown_signal().await;
         info!("shutting down");
     })
     .await?;
     Ok(())
+}
+
+/// Resolves on Ctrl-C or SIGTERM (what the Supervisor and Docker send to
+/// stop a container).
+async fn shutdown_signal() {
+    let mut term = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+        .expect("installing SIGTERM handler");
+    tokio::select! {
+        _ = tokio::signal::ctrl_c() => {}
+        _ = term.recv() => {}
+    }
 }
 
 /// The token the Home Assistant integration must present. Generated on first
