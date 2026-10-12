@@ -1,7 +1,8 @@
-//! JSON-friendly view of device capabilities for the Home Assistant API.
+//! JSON-friendly views of device capabilities and status for the Home
+//! Assistant API.
 //!
 //! The protobuf types use integer enums (good on the wire, awkward in JSON),
-//! so we convert them to readable strings like `"snapcast"` or `"eink"`.
+//! so we convert them to readable strings like `"sendspin"` or `"eink"`.
 
 use alosa_protocol::v1;
 use serde::{Deserialize, Serialize};
@@ -28,6 +29,17 @@ pub struct Capabilities {
 pub struct AudioOut {
     pub channels: u32,
     pub protocols: Vec<String>,
+    #[serde(default)]
+    pub outputs: Vec<AudioOutput>,
+    /// The player software and version, e.g. "sendspin-cli 0.3.0".
+    #[serde(default)]
+    pub engine: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct AudioOutput {
+    pub id: String,
+    pub description: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -82,6 +94,15 @@ impl From<v1::Capabilities> for Capabilities {
                     .into_iter()
                     .map(|p| enum_name!(v1::AudioProtocol, p, "AUDIO_PROTOCOL_"))
                     .collect(),
+                outputs: a
+                    .outputs
+                    .into_iter()
+                    .map(|o| AudioOutput {
+                        id: o.id,
+                        description: o.description,
+                    })
+                    .collect(),
+                engine: a.engine,
             }),
             microphone: c.microphone.map(|m| Microphone {
                 echo_cancellation: m.echo_cancellation,
@@ -107,6 +128,38 @@ impl From<v1::Capabilities> for Capabilities {
             leds: c.leds.map(|l| Leds {
                 kind: enum_name!(v1::LedKind, l.kind, "LED_KIND_"),
                 count: l.count,
+            }),
+        }
+    }
+}
+
+/// What a device is doing right now. Not persisted; cleared when it disconnects.
+#[derive(Clone, Debug, Default, Serialize)]
+pub struct Status {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub audio: Option<AudioStatus>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct AudioStatus {
+    /// "stopped", "running" or "failed".
+    pub engine: String,
+    pub error: String,
+    /// The Sendspin server (normally Music Assistant) connected to the device;
+    /// empty if none is.
+    pub server_name: String,
+    /// "idle" or "playing".
+    pub playback: String,
+}
+
+impl From<v1::Status> for Status {
+    fn from(s: v1::Status) -> Self {
+        Self {
+            audio: s.audio.map(|a| AudioStatus {
+                engine: enum_name!(v1::AudioEngineState, a.engine, "AUDIO_ENGINE_STATE_"),
+                error: a.error,
+                server_name: a.server_name,
+                playback: enum_name!(v1::PlaybackState, a.playback, "PLAYBACK_STATE_"),
             }),
         }
     }

@@ -1,0 +1,3 @@
+# The account alosa-agent.service runs as, in the audio group so it can play sound.
+u alosa - "Alosa device agent" /var/lib/alosa-agent
+m alosa audio

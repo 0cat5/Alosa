@@ -74,6 +74,9 @@ async fn run(
         adopted = device.adopted, fingerprint = %device.fingerprint, "device online"
     );
     tx.send(welcome(device.adopted)).await?;
+    if device.adopted {
+        tx.send(device.config_message()).await?;
+    }
 
     // Writer: everything queued for this device is encrypted and sent. When
     // the read side ends, it sends a close frame so the device sees a clean
@@ -161,6 +164,10 @@ async fn read_loop(
             }
             Some(v1::device_message::Msg::CommandResult(result)) => {
                 registry.complete_command(result).await;
+            }
+            Some(v1::device_message::Msg::Status(status)) => {
+                debug!(device_id, ?status, "status");
+                registry.update_status(device_id, status).await;
             }
             Some(v1::device_message::Msg::Hello(_)) => warn!(device_id, "ignoring repeated Hello"),
             None => warn!(device_id, "empty message"),

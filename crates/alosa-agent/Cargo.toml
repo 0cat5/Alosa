@@ -11,6 +11,7 @@ anyhow.workspace = true
 clap.workspace = true
 futures-util.workspace = true
 mdns-sd.workspace = true
+nix = { version = "0.31.3", features = ["signal"] }
 prost.workspace = true
 tokio.workspace = true
 tokio-tungstenite = "0.26"

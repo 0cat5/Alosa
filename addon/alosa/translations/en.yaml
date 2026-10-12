@@ -1,0 +1,9 @@
+configuration:
+  auto_adopt:
+    name: Adopt new devices automatically
+    description: >-
+      Skip the adoption step in Home Assistant and trust every new Alosa device
+      on the network. Convenient for development; leave it off in a real home.
+  log_level:
+    name: Log level
+    description: How much the server writes to the add-on log. Use debug when reporting a problem.

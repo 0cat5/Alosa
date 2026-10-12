@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::{broadcast, mpsc, oneshot, Mutex, Notify, RwLock};
 use tracing::{info, warn};
 
-use crate::capabilities::Capabilities;
+use crate::views::{Capabilities, Status};
 
 pub const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(10);
 const COMMAND_TIMEOUT: Duration = Duration::from_secs(10);
@@ -42,6 +42,39 @@ pub struct Device {
     /// Short form of `public_key`, shown in Home Assistant for verification.
     #[serde(default)]
     pub fingerprint: String,
+    /// What the user configured. Sent to the device as its DeviceConfig.
+    #[serde(default)]
+    pub settings: Settings,
+    /// What the device last reported. Runtime state only.
+    #[serde(default, skip_deserializing)]
+    pub status: Option<Status>,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct Settings {
+    /// Which of the device's audio outputs to play through. `None` means the
+    /// device's default.
+    #[serde(default)]
+    pub audio_output: Option<String>,
+}
+
+impl Device {
+    /// The config the device should be running, built from its settings.
+    pub fn config_message(&self) -> v1::ServerMessage {
+        let audio = self
+            .capabilities
+            .audio_out
+            .as_ref()
+            .map(|_| v1::AudioConfig {
+                output: self.settings.audio_output.clone().unwrap_or_default(),
+            });
+        v1::ServerMessage {
+            msg: Some(v1::server_message::Msg::Config(v1::DeviceConfig {
+                name: self.name.clone(),
+                audio,
+            })),
+        }
+    }
 }
 
 /// Events pushed to API clients (the Home Assistant integration).
@@ -166,6 +199,8 @@ impl Registry {
                     capabilities: Capabilities::default(),
                     public_key: String::new(),
                     fingerprint: String::new(),
+                    settings: Settings::default(),
+                    status: None,
                 }
             });
             // Hardware facts always come from the device; the name belongs to the user.
@@ -217,6 +252,7 @@ impl Registry {
                 return;
             };
             device.online = false;
+            device.status = None;
             device.clone()
         };
         info!(device_id, "device offline");
@@ -238,8 +274,87 @@ impl Registry {
         // Tell the device right away so it doesn't wait for a reconnect.
         if let Some(conn) = self.connections.read().await.get(device_id) {
             let _ = conn.tx.send(welcome(true)).await;
+            let _ = conn.tx.send(device.config_message()).await;
         }
         Ok(device)
+    }
+
+    /// Renames a device (e.g. after the user renamed it in Home Assistant)
+    /// and pushes the new name to it, so Music Assistant shows it too.
+    pub async fn rename(&self, device_id: &str, name: String) -> anyhow::Result<Device> {
+        let name = name.trim().to_string();
+        if name.is_empty() {
+            bail!("name can't be empty");
+        }
+        let device = {
+            let mut devices = self.devices.write().await;
+            let device = devices
+                .get_mut(device_id)
+                .ok_or_else(|| anyhow!("unknown device {device_id}"))?;
+            if device.name == name {
+                return Ok(device.clone());
+            }
+            device.name = name;
+            device.clone()
+        };
+        info!(device_id, name = %device.name, "device renamed");
+        self.persist().await;
+        self.emit(Event::DeviceUpdated(Box::new(device.clone())));
+        if device.adopted {
+            if let Some(conn) = self.connections.read().await.get(device_id) {
+                let _ = conn.tx.send(device.config_message()).await;
+            }
+        }
+        Ok(device)
+    }
+
+    /// Changes a device's settings and pushes the new config to it.
+    pub async fn configure(
+        &self,
+        device_id: &str,
+        audio_output: Option<String>,
+    ) -> anyhow::Result<Device> {
+        let device = {
+            let mut devices = self.devices.write().await;
+            let device = devices
+                .get_mut(device_id)
+                .ok_or_else(|| anyhow!("unknown device {device_id}"))?;
+            if !device.adopted {
+                bail!("device {device_id} has not been adopted");
+            }
+            if let Some(output) = &audio_output {
+                let audio = device
+                    .capabilities
+                    .audio_out
+                    .as_ref()
+                    .ok_or_else(|| anyhow!("device {device_id} has no audio output"))?;
+                if !audio.outputs.iter().any(|o| &o.id == output) {
+                    bail!("device {device_id} has no audio output {output:?}");
+                }
+            }
+            device.settings.audio_output = audio_output;
+            device.clone()
+        };
+        info!(device_id, settings = ?device.settings, "device configured");
+        self.persist().await;
+        self.emit(Event::DeviceUpdated(Box::new(device.clone())));
+        if let Some(conn) = self.connections.read().await.get(device_id) {
+            let _ = conn.tx.send(device.config_message()).await;
+        }
+        Ok(device)
+    }
+
+    /// Records a device's latest reported status.
+    pub async fn update_status(&self, device_id: &str, status: v1::Status) {
+        let device = {
+            let mut devices = self.devices.write().await;
+            let Some(device) = devices.get_mut(device_id) else {
+                return;
+            };
+            device.status = Some(status.into());
+            device.clone()
+        };
+        self.emit(Event::DeviceUpdated(Box::new(device)));
     }
 
     /// Forgets a device and disconnects it. If it is still powered on it will
@@ -331,7 +446,12 @@ impl Registry {
     /// Writes the device list to disk. Written to a temp file and renamed so
     /// a crash mid-write can't leave a corrupt store behind.
     async fn persist(&self) {
-        let list = self.list().await;
+        let mut list = self.list().await;
+        // Only durable facts go to disk; online/status are rebuilt at runtime.
+        for device in &mut list {
+            device.online = false;
+            device.status = None;
+        }
         let result = async {
             let json = serde_json::to_vec_pretty(&list)?;
             let tmp = self.store_path.with_extension("json.tmp");

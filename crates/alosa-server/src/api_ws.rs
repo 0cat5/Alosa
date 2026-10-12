@@ -10,6 +10,10 @@
 //!   devices/list                                 -> [Device, ...]
 //!   device/adopt     {"device_id"}               -> Device
 //!   device/remove    {"device_id"}               -> {}
+//!   device/rename    {"device_id", "name"}       -> Device
+//!   device/restart   {"device_id"}               -> {}   (restarts the device software)
+//!   device/configure {"device_id", "audio_output"} -> Device
+//!                    (audio_output: an id from the device's outputs, or null for its default)
 //!   device/identify  {"device_id", "duration_s"} -> {}
 
 use std::sync::Arc;
@@ -36,6 +40,18 @@ struct Request {
 #[derive(Deserialize)]
 struct DeviceArgs {
     device_id: String,
+}
+
+#[derive(Deserialize)]
+struct RenameArgs {
+    device_id: String,
+    name: String,
+}
+
+#[derive(Deserialize)]
+struct ConfigureArgs {
+    device_id: String,
+    audio_output: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -133,6 +149,28 @@ async fn dispatch(
             Ok(serde_json::to_value(
                 registry.adopt(&args.device_id).await?,
             )?)
+        }
+        "device/rename" => {
+            let args: RenameArgs = parse_args(args)?;
+            Ok(serde_json::to_value(
+                registry.rename(&args.device_id, args.name).await?,
+            )?)
+        }
+        "device/restart" => {
+            let args: DeviceArgs = parse_args(args)?;
+            let cmd = v1::command::Cmd::Restart(v1::Restart {});
+            let result = registry.send_command(&args.device_id, cmd).await?;
+            if !result.ok {
+                bail!("device reported an error: {}", result.error);
+            }
+            Ok(json!({}))
+        }
+        "device/configure" => {
+            let args: ConfigureArgs = parse_args(args)?;
+            let device = registry
+                .configure(&args.device_id, args.audio_output)
+                .await?;
+            Ok(serde_json::to_value(device)?)
         }
         "device/remove" => {
             let args: DeviceArgs = parse_args(args)?;

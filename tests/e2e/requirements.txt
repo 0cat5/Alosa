@@ -1,0 +1,4 @@
+# For tests/e2e/run.py (scripts/e2e.sh installs these into target/e2e/venv).
+aiohttp>=3.11
+# The Sendspin reference server, used to stream a test tone to devices.
+sendspin==7.5.0

@@ -44,5 +44,32 @@
       "adopt_failed": "Could not adopt the device. Make sure it is still powered on and connected, then try again.",
       "server_unavailable": "The Alosa server is not connected right now. Try again once it is."
     }
+  },
+  "entity": {
+    "select": {
+      "audio_output": {
+        "name": "Audio output"
+      }
+    },
+    "sensor": {
+      "audio_status": {
+        "name": "Audio status",
+        "state": {
+          "stopped": "Stopped",
+          "waiting": "Waiting for Music Assistant",
+          "idle": "Idle",
+          "playing": "Playing",
+          "error": "Error"
+        },
+        "state_attributes": {
+          "server": {
+            "name": "Server"
+          },
+          "error": {
+            "name": "Error"
+          }
+        }
+      }
+    }
   }
 }

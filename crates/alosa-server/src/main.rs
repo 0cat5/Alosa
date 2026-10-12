@@ -5,10 +5,10 @@
 //! Home Assistant add-on, or standalone.
 
 mod api_ws;
-mod capabilities;
 mod device_ws;
 mod mdns;
 mod registry;
+mod views;
 
 use std::{net::SocketAddr, path::PathBuf, sync::Arc};
 

@@ -1,0 +1,45 @@
+# Alosa device agent as a system service. Install:
+#
+# The easy way: `sudo alosa-device install` (scripts/alosa-device.sh) does all
+# of this. By hand:
+#
+#   sudo cp alosa-agent.service /etc/systemd/system/
+#   sudo cp alosa-agent.sysusers /etc/sysusers.d/alosa-agent.conf
+#   sudo cp alosa-agent.conf.example /etc/alosa-agent.conf   # then edit it
+#   sudo systemd-sysusers
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now alosa-agent
+#
+# The agent starts and stops sendspin-cli itself, so do NOT also enable
+# sendspin-cli.service: the two would fight over the audio port.
+
+[Unit]
+Description=Alosa device agent
+Documentation=https://github.com/0cat5/Alosa
+After=network.target sound.target avahi-daemon.service
+
+[Service]
+Type=simple
+User=alosa
+SupplementaryGroups=audio
+EnvironmentFile=-/etc/alosa-agent.conf
+ExecStart=/usr/local/bin/alosa-agent --state-dir %S/alosa-agent
+
+# /var/lib/alosa-agent holds the device key and saved config; /run/alosa-agent
+# holds the audio engine's control socket.
+StateDirectory=alosa-agent
+StateDirectoryMode=0700
+RuntimeDirectory=alosa-agent
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+# Stopping the service stops sendspin-cli too: the agent shuts it down on
+# SIGTERM, and systemd cleans up the whole process group regardless.
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

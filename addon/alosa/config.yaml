@@ -2,22 +2,25 @@ name: Alosa
 version: "0.1.0"
 slug: alosa
 description: Control server for Alosa speakers, displays and audio devices
-url: https://github.com/alosa-home/alosa
+url: https://github.com/0cat5/Alosa
 arch:
   - aarch64
   - amd64
+# Published by the release workflow (.github/workflows/release.yml).
+image: ghcr.io/0cat5/{arch}-addon-alosa
 # Host networking is required so devices can find the server via mDNS.
 host_network: true
 startup: services
+# Restart the add-on if the server stops answering.
+watchdog: http://[HOST]:[PORT:8765]/health
 # Lets the add-on announce itself (address + API token) to Home Assistant.
 discovery:
   - alosa
+# /data (device store, server key, API token) is included in Home Assistant backups.
+backup: hot
 options:
   auto_adopt: false
   log_level: info
 schema:
   auto_adopt: bool
   log_level: list(trace|debug|info|warn|error)
-# Prebuilt images, published by CI (not set up yet). Until then, build the image
-# yourself (see the repository README).
-# image: ghcr.io/alosa-home/{arch}-addon-alosa

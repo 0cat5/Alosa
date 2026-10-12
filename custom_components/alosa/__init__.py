@@ -5,18 +5,14 @@ from __future__ import annotations
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import (
-    ConfigEntryAuthFailed,
-    ConfigEntryNotReady,
-    HomeAssistantError,
-)
-from homeassistant.helpers.device_registry import DeviceEntry
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady, HomeAssistantError
+from homeassistant.helpers.device_registry import EVENT_DEVICE_REGISTRY_UPDATED, DeviceEntry
 
 from .client import AlosaError, CommandError, InvalidAuth
 from .const import DOMAIN
 from .hub import AlosaHub
 
-PLATFORMS = [Platform.BINARY_SENSOR, Platform.BUTTON]
+PLATFORMS = [Platform.BINARY_SENSOR, Platform.BUTTON, Platform.SELECT, Platform.SENSOR]
 
 type AlosaConfigEntry = ConfigEntry[AlosaHub]
 
@@ -33,6 +29,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: AlosaConfigEntry) -> boo
     entry.runtime_data = hub
     entry.async_on_unload(hub.async_close)
     entry.async_create_background_task(hass, hub.async_run(), "alosa_connection")
+    # Renaming a device in Home Assistant renames it everywhere (e.g. Music Assistant).
+    entry.async_on_unload(
+        hass.bus.async_listen(EVENT_DEVICE_REGISTRY_UPDATED, hub.async_on_registry_updated)
+    )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True

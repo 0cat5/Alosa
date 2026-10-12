@@ -1,0 +1,13 @@
+# Python lint settings (the Home Assistant integration and the e2e tests).
+# Import style follows Home Assistant's own.
+line-length = 100
+target-version = "py313"
+
+[lint]
+select = ["E", "F", "W", "B", "UP", "I"]
+
+[lint.isort]
+force-sort-within-sections = true
+combine-as-imports = true
+known-first-party = ["homeassistant"]
+split-on-trailing-comma = false

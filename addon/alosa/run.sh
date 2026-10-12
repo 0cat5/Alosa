@@ -7,8 +7,9 @@ OPTIONS=/data/options.json
 PORT=8765
 
 if [ -f "$OPTIONS" ]; then
-    export ALOSA_AUTO_ADOPT="$(jq -r '.auto_adopt' "$OPTIONS")"
-    export RUST_LOG="$(jq -r '.log_level' "$OPTIONS")"
+    ALOSA_AUTO_ADOPT=$(jq -r '.auto_adopt' "$OPTIONS")
+    RUST_LOG=$(jq -r '.log_level' "$OPTIONS")
+    export ALOSA_AUTO_ADOPT RUST_LOG
 fi
 export ALOSA_PORT="$PORT"
 

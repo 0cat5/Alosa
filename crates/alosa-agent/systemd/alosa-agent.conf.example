@@ -1,0 +1,16 @@
+# Settings for alosa-agent.service, kept in /etc/alosa-agent.conf.
+# Each line is an environment variable; `alosa-agent --help` lists them all.
+# Quote values that contain spaces. `sudo alosa-device install --profile ...
+# --name ...` edits these for you.
+
+# What kind of device this is: connect, speaker, display or eink-clock.
+ALOSA_PROFILE="connect"
+
+# The name it suggests when you adopt it (you can rename it in Home Assistant).
+ALOSA_DEVICE_NAME="Alosa Connect"
+
+# Only needed if mDNS can't find the server, e.g. across VLANs.
+#ALOSA_SERVER="ws://192.168.1.10:8765/device"
+
+# Where sendspin-cli is installed, if not on the PATH.
+#ALOSA_SENDSPIN_BIN="/usr/local/bin/sendspin-cli"

@@ -9,8 +9,8 @@ from typing import Any
 
 from homeassistant.config_entries import SOURCE_INTEGRATION_DISCOVERY, ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_PORT, CONF_TOKEN
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers import discovery_flow
+from homeassistant.core import Event, HomeAssistant, callback
+from homeassistant.helpers import device_registry as dr, discovery_flow
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .client import AlosaClient, AlosaError, InvalidAuth
@@ -64,7 +64,12 @@ class AlosaHub:
         backoff = 1
         while True:
             if self._listen_task is not None:
-                await self._listen_task
+                try:
+                    await self._listen_task
+                except Exception:
+                    # Whatever broke the connection, the fix is to reconnect;
+                    # letting it escape would end this task and never retry.
+                    _LOGGER.exception("Error reading from the Alosa server")
             _LOGGER.warning("Lost connection to the Alosa server, reconnecting")
             self._notify_all()
             while True:
@@ -115,6 +120,31 @@ class AlosaHub:
     async def async_remove(self, device_id: str) -> None:
         await self.client.call("device/remove", device_id=device_id)
 
+    async def async_set_audio_output(self, device_id: str, output: str | None) -> None:
+        await self.client.call("device/configure", device_id=device_id, audio_output=output)
+
+    async def async_restart(self, device_id: str) -> None:
+        await self.client.call("device/restart", device_id=device_id)
+
+    async def _async_rename(self, device_id: str, name: str) -> None:
+        try:
+            await self.client.call("device/rename", device_id=device_id, name=name)
+        except AlosaError as err:
+            # Retried on the next update from the server (e.g. after reconnecting).
+            _LOGGER.warning("Could not rename Alosa device %s: %s", device_id, err)
+
+    @callback
+    def async_on_registry_updated(self, event: Event[dr.EventDeviceRegistryUpdatedData]) -> None:
+        """React to the user renaming one of our devices in Home Assistant."""
+        if event.data["action"] != "update" or "name_by_user" not in event.data["changes"]:
+            return
+        entry = dr.async_get(self.hass).async_get(event.data["device_id"])
+        if entry is None:
+            return
+        for domain, device_id in entry.identifiers:
+            if domain == DOMAIN and device_id in self.devices:
+                self._sync_registry(self.devices[device_id])
+
     @callback
     def _on_event(self, event: str, data: dict[str, Any]) -> None:
         if event == "device_updated":
@@ -133,8 +163,29 @@ class AlosaHub:
                 listener(device)
         if not device["adopted"] and device["online"]:
             self._offer_adoption(device)
+        if device["adopted"]:
+            self._sync_registry(device)
         for listener in list(self._update_listeners.get(device["id"], [])):
             listener()
+
+    @callback
+    def _sync_registry(self, device: Device) -> None:
+        """Keep Home Assistant's device entry and the server in agreement:
+        version and model come from the device, the name from Home Assistant."""
+        dev_reg = dr.async_get(self.hass)
+        entry = dev_reg.async_get_device(identifiers={(DOMAIN, device["id"])})
+        if entry is None:
+            # Not created yet; the entities create it with current values.
+            return
+        if entry.sw_version != device["firmware_version"] or entry.model != device["model"]:
+            dev_reg.async_update_device(
+                entry.id, sw_version=device["firmware_version"], model=device["model"]
+            )
+        wanted_name = entry.name_by_user or entry.name
+        if wanted_name and wanted_name != device["name"] and self.connected:
+            self.entry.async_create_background_task(
+                self.hass, self._async_rename(device["id"], wanted_name), "alosa_rename"
+            )
 
     @callback
     def _offer_adoption(self, device: Device) -> None:

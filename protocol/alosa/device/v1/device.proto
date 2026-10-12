@@ -7,8 +7,11 @@
 //   1. Device finds the server via mDNS (_alosa._tcp) and opens ws://<host>:<port>/device
 //   2. Device sends Hello (identity + capabilities)
 //   3. Server replies Welcome (adopted or pending)
-//   4. Device sends Heartbeat every `heartbeat_interval_s`; the server marks it
-//      offline if it misses several in a row.
+//   4. If the device is adopted, the server sends its DeviceConfig, and sends it
+//      again whenever it changes.
+//   5. Device sends Heartbeat every `heartbeat_interval_s`; the server marks it
+//      offline if it misses several in a row. It sends Status when its state
+//      changes.
 syntax = "proto3";
 
 package alosa.device.v1;
@@ -20,6 +23,7 @@ message DeviceMessage {
     Hello hello = 1;
     Heartbeat heartbeat = 2;
     CommandResult command_result = 3;
+    Status status = 4;
   }
 }
 
@@ -27,6 +31,7 @@ message ServerMessage {
   oneof msg {
     Welcome welcome = 1;
     Command command = 2;
+    DeviceConfig config = 3;
   }
 }
 
@@ -53,6 +58,32 @@ message CommandResult {
   string error = 3;
 }
 
+// Runtime state, sent whenever it changes. Every field is the full current
+// value, not a delta.
+message Status {
+  AudioStatus audio = 1; // unset: device has no audio
+}
+
+message AudioStatus {
+  AudioEngineState engine = 1;
+  string error = 2;       // why the engine failed, when it did
+  string server_name = 3; // the Sendspin server (e.g. Music Assistant) connected to it, if any
+  PlaybackState playback = 4;
+}
+
+enum AudioEngineState {
+  AUDIO_ENGINE_STATE_UNSPECIFIED = 0;
+  AUDIO_ENGINE_STATE_STOPPED = 1;  // not adopted, or audio disabled
+  AUDIO_ENGINE_STATE_RUNNING = 2;
+  AUDIO_ENGINE_STATE_FAILED = 3;   // crashed or can't start; the device keeps retrying
+}
+
+enum PlaybackState {
+  PLAYBACK_STATE_UNSPECIFIED = 0;
+  PLAYBACK_STATE_IDLE = 1;
+  PLAYBACK_STATE_PLAYING = 2;
+}
+
 // ---------- Server -> Device ----------
 
 message Welcome {
@@ -65,12 +96,30 @@ message Command {
   uint64 command_id = 1;
   oneof cmd {
     Identify identify = 2;
+    Restart restart = 3;
   }
 }
 
 // Make the device announce itself (blink LEDs, play a chime, flash the screen).
 message Identify {
   uint32 duration_s = 1;
+}
+
+// Restart the device software (not a reboot). The device replies first, then
+// restarts, which also picks up a newly installed version.
+message Restart {}
+
+// Settings the server owns for this device. The device stores the latest one
+// and keeps using it while the server is unreachable, so music keeps playing
+// through a server restart.
+message DeviceConfig {
+  string name = 1;
+  AudioConfig audio = 2; // unset: audio off
+}
+
+message AudioConfig {
+  // One of AudioOut.outputs[].id. Empty means the device's default output.
+  string output = 1;
 }
 
 // ---------- Capabilities ----------
@@ -91,6 +140,13 @@ message Capabilities {
 message AudioOut {
   uint32 channels = 1;
   repeated AudioProtocol protocols = 2;
+  repeated AudioOutput outputs = 3; // where audio can be sent (sound cards etc.)
+  string engine = 4;                // the player software and version, e.g. "sendspin-cli 0.3.0"
+}
+
+message AudioOutput {
+  string id = 1;          // e.g. an ALSA name like "hw:CARD=sndrpihifiberry,DEV=0"
+  string description = 2; // human-readable, e.g. "HiFiBerry DAC+"
 }
 
 enum AudioProtocol {

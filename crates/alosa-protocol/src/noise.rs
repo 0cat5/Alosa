@@ -59,15 +59,7 @@ impl Identity {
     /// Loads the identity from `path`, creating it (readable only by the
     /// owner) on first run.
     pub fn load_or_create(path: &Path) -> io::Result<Self> {
-        match fs::read(path) {
-            Ok(bytes) if bytes.len() == KEY_LEN * 2 => Ok(Self {
-                private: bytes[..KEY_LEN].to_vec(),
-                public: bytes[KEY_LEN..].to_vec(),
-            }),
-            Ok(_) => Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("{} is not a valid identity key", path.display()),
-            )),
+        match Self::load(path) {
             Err(e) if e.kind() == io::ErrorKind::NotFound => {
                 let identity = Self::generate().map_err(io::Error::other)?;
                 if let Some(dir) = path.parent() {
@@ -79,8 +71,23 @@ impl Identity {
                 )?;
                 Ok(identity)
             }
-            Err(e) => Err(e),
+            result => result,
         }
+    }
+
+    /// Loads an existing identity. Fails with `NotFound` if there is none.
+    pub fn load(path: &Path) -> io::Result<Self> {
+        let bytes = fs::read(path)?;
+        if bytes.len() != KEY_LEN * 2 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("{} is not a valid identity key", path.display()),
+            ));
+        }
+        Ok(Self {
+            private: bytes[..KEY_LEN].to_vec(),
+            public: bytes[KEY_LEN..].to_vec(),
+        })
     }
 }
 

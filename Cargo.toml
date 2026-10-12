@@ -6,7 +6,7 @@ members = ["crates/alosa-protocol", "crates/alosa-server", "crates/alosa-agent"]
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
-repository = "https://github.com/alosa-home/alosa"
+repository = "https://github.com/0cat5/Alosa"
 
 [workspace.dependencies]
 alosa-protocol = { path = "crates/alosa-protocol" }
@@ -18,7 +18,9 @@ mdns-sd = "0.13"
 prost = "0.13"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-snow = "0.10"
+# Without default features: snow's "std" feature drags in ring (C code) even
+# though we don't use it, which would complicate cross-compiling.
+snow = { version = "0.10", default-features = false, features = ["default-resolver-crypto"] }
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

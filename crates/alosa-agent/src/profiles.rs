@@ -26,14 +26,30 @@ impl Profile {
         }
     }
 
-    pub fn capabilities(self) -> v1::Capabilities {
+    /// Name shown in Music Assistant's device info.
+    pub fn product_name(self) -> &'static str {
+        match self {
+            Profile::Connect => "Alosa Connect",
+            Profile::Speaker => "Alosa Speaker",
+            Profile::Display => "Alosa Display",
+            Profile::EinkClock => "Alosa E-ink Clock",
+        }
+    }
+
+    pub fn has_audio(self) -> bool {
+        self.capabilities(Vec::new()).audio_out.is_some()
+    }
+
+    /// The device's hardware. `outputs` are the audio outputs found on this
+    /// machine; profiles without audio ignore them.
+    pub fn capabilities(self, outputs: Vec<v1::AudioOutput>) -> v1::Capabilities {
+        // AirPlay and Spotify Connect reach the device through Music
+        // Assistant's plugins, so Sendspin is the only protocol it speaks.
         let audio = |channels| v1::AudioOut {
             channels,
-            protocols: vec![
-                AudioProtocol::Snapcast as i32,
-                AudioProtocol::Airplay as i32,
-                AudioProtocol::SpotifyConnect as i32,
-            ],
+            protocols: vec![AudioProtocol::Sendspin as i32],
+            outputs: outputs.clone(),
+            engine: String::new(), // filled in by the agent
         };
         let mains = Some(v1::Power {
             kind: PowerKind::Mains as i32,
