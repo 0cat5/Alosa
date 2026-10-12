@@ -9,9 +9,11 @@ cd "$(dirname "$0")/.."
 
 cargo build -q -p alosa-server -p alosa-agent
 
-work=target/e2e
+# Kept out of target/: CI caches target/ and would restore a half-copied venv.
+work=.e2e
 venv=$work/venv
-if [ ! -x "$venv/bin/python" ]; then
+if [ ! -x "$venv/bin/python" ] || [ ! -x "$venv/bin/pip" ]; then
+    rm -rf "$venv"
     python3 -m venv "$venv"
 fi
 "$venv/bin/pip" install -q --disable-pip-version-check -r tests/e2e/requirements.txt
