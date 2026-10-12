@@ -134,7 +134,9 @@ read_release_env() { # file
         SENDSPIN_CLI_VERSION) SENDSPIN_CLI_VERSION=$value ;;
         esac
     done <"$1"
-    [ -n "$ALOSA_VERSION" ] && [ -n "$SENDSPIN_CLI_VERSION" ] || die "release.env is incomplete"
+    if [ -z "$ALOSA_VERSION" ] || [ -z "$SENDSPIN_CLI_VERSION" ]; then
+        die "release.env is incomplete"
+    fi
 }
 
 # Puts the release files for $VERSION (or the latest) into $WORK.
@@ -199,7 +201,9 @@ install_sendspin() {
 
 # Libraries sendspin-cli links against (Debian / Raspberry Pi OS names).
 install_deps() {
-    [ -z "$NO_DEPS" ] && live || return 0
+    if [ -n "$NO_DEPS" ] || ! live; then
+        return 0
+    fi
     if ! command -v apt-get >/dev/null; then
         warn "not a Debian-based system: install ALSA, PortAudio, PulseAudio, PipeWire and Avahi's libdns_sd yourself"
         return
